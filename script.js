@@ -1,30 +1,34 @@
 // ════════════════════════════════════════════════════════════
-//  IMPORTAÇÕES DO FIREBASE
-//  O Firebase é carregado via CDN (sem precisar instalar nada)
+//  FIREBASE — importações via CDN
 // ════════════════════════════════════════════════════════════
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp }  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-  getFirestore,
-  collection,
-  doc,
-  addDoc,
-  setDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  updateDoc,
-  increment,
-  serverTimestamp
+  getFirestore, collection, doc,
+  addDoc, setDoc, deleteDoc,
+  onSnapshot, query, orderBy,
+  updateDoc, increment, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// ════════════════════════════════════════════════════════════
+//  CONFIGURAÇÃO FIREBASE — credenciais fixas no código
+//  (não pede mais para o usuário configurar)
+// ════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "AIzaSyAUkleGF0bBmPUmSNFJV6spuIvxvfsejDM",
+  authDomain:        "ifpa-cameta-39228.firebaseapp.com",
+  projectId:         "ifpa-cameta-39228",
+  storageBucket:     "ifpa-cameta-39228.firebasestorage.app",
+  messagingSenderId: "1057210362487",
+  appId:             "1:1057210362487:web:66089b2bb37ecbdf5ab472",
+  measurementId:     "G-RTXW7YZMQ3"
+};
 
 // ════════════════════════════════════════════════════════════
 //  CONFIGURAÇÕES DO SITE
 //  ⚠ Mude o ADMIN_PIN para o PIN que preferir (4 dígitos)
 // ════════════════════════════════════════════════════════════
-const ADMIN_PIN    = '1234';
-const STORAGE_KEY  = 'ifpa_firebase_config'; // chave salva no navegador
-const LIKED_KEY    = 'ifpa_liked';           // opiniões que o usuário já curtiu
+const ADMIN_PIN = '1234';
+const LIKED_KEY = 'ifpa_liked'; // opiniões que o usuário já curtiu
 
 // ════════════════════════════════════════════════════════════
 //  CONSTANTES DE DATA
@@ -36,33 +40,23 @@ const MESES      = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out',
 // ════════════════════════════════════════════════════════════
 //  ESTADO DA APLICAÇÃO
 // ════════════════════════════════════════════════════════════
-let db               = null;   // instância do Firestore
-let isAdmin          = false;  // modo admin ativado?
-let currentSort      = 'likes';
+let db                = null;
+let isAdmin           = false;
+let currentSort       = 'likes';
 let currentWeekOffset = 0;
 let editingMerendaKey = null;
 
-// dados em memória (atualizados pelos listeners do Firebase)
-let opinioes = [];
-let eventos  = [];
-let merenda  = {};
+let opinioes      = [];
+let eventos       = [];
+let merenda       = {};
 let likedOpinioes = JSON.parse(localStorage.getItem(LIKED_KEY) || '[]');
 
 // ════════════════════════════════════════════════════════════
-//  FUNÇÕES UTILITÁRIAS
+//  UTILITÁRIOS
 // ════════════════════════════════════════════════════════════
+function dateKey(d)  { return d.toISOString().slice(0, 10); }
+function isToday(d)  { return dateKey(d) === dateKey(new Date()); }
 
-/** Retorna a data no formato AAAA-MM-DD (usada como chave no Firestore) */
-function dateKey(d) {
-  return d.toISOString().slice(0, 10);
-}
-
-/** Verifica se uma data é hoje */
-function isToday(d) {
-  return dateKey(d) === dateKey(new Date());
-}
-
-/** Retorna os 5 dias úteis da semana com base no offset */
 function getWeekDates(offset) {
   const now    = new Date();
   const day    = now.getDay();
@@ -76,7 +70,7 @@ function getWeekDates(offset) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  NOTIFICAÇÃO (TOAST)
+//  TOAST (notificação)
 // ════════════════════════════════════════════════════════════
 function toast(msg, tipo = '') {
   const el = document.getElementById('toast');
@@ -96,83 +90,31 @@ function hideLoading() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  CONFIGURAÇÃO E CONEXÃO COM FIREBASE
+//  INICIALIZAÇÃO DO FIREBASE
 // ════════════════════════════════════════════════════════════
-
-/** Chamado quando o usuário clica em "Conectar ao Firebase" */
-window.salvarConfigFirebase = function () {
-  const raw    = document.getElementById('firebase-config-input').value.trim();
-  const errEl  = document.getElementById('setup-error');
-  const btnEl  = document.getElementById('btn-conectar');
-  errEl.style.display = 'none';
-
-  // ── 1. Extrai o objeto { ... } do texto colado ──
-  const start = raw.indexOf('{');
-  const end   = raw.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    errEl.textContent = 'Não encontrei um objeto { } válido. Cole o bloco firebaseConfig completo.';
-    errEl.style.display = 'block';
-    return;
-  }
-  let body = raw.slice(start + 1, end);
-
-  // ── 2. Converte formato JavaScript → JSON ──
-  body = body.replace(/\/\/[^\n]*/g, '');                          // remove comentários //
-  body = body.replace(/([{,\s])([a-zA-Z_]\w*)\s*:/g, '$1"$2":'); // coloca aspas nas chaves
-  body = body.replace(/:\s*'([^']*)'/g, ': "$1"');                // troca aspas simples por duplas
-  body = body.replace(/,\s*}/g, '}');                              // remove vírgula antes de }
-
-  let cfg;
+function iniciarFirebase() {
   try {
-    cfg = JSON.parse('{' + body + '}');
-  } catch (e) {
-    errEl.innerHTML =
-      'Não consegui ler o conteúdo. Tente copiar <strong>somente o bloco entre { e }</strong>.<br>' +
-      '<small style="color:var(--cinza)">Erro técnico: ' + e.message + '</small>';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  if (!cfg.apiKey || !cfg.projectId) {
-    errEl.textContent = 'Configuração incompleta: apiKey e projectId são obrigatórios.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  btnEl.disabled    = true;
-  btnEl.textContent = 'Conectando...';
-
-  // Salva no navegador e inicializa
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
-  conectarFirebase(cfg);
-};
-
-/** Inicializa o Firebase com as credenciais e começa a ouvir os dados */
-function conectarFirebase(cfg) {
-  try {
-    const app = initializeApp(cfg);
+    const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    document.getElementById('modal-setup').classList.remove('open');
+
+    // Esconde o modal de setup caso ainda esteja visível
+    const modalSetup = document.getElementById('modal-setup');
+    if (modalSetup) modalSetup.classList.remove('open');
+
     iniciarListeners();
   } catch (e) {
-    const errEl = document.getElementById('setup-error');
-    errEl.textContent = 'Erro ao conectar: ' + e.message;
-    errEl.style.display = 'block';
-    const btnEl = document.getElementById('btn-conectar');
-    btnEl.disabled    = false;
-    btnEl.textContent = 'Conectar ao Firebase →';
-    localStorage.removeItem(STORAGE_KEY);
+    console.error('Erro ao conectar ao Firebase:', e);
+    hideLoading();
+    toast('Erro ao conectar ao servidor. Recarregue a página.', 'error');
   }
 }
 
 // ════════════════════════════════════════════════════════════
-//  LISTENERS EM TEMPO REAL (Firebase → site)
-//  Sempre que alguém salvar algo no Firebase,
-//  o site atualiza automaticamente para todos os usuários.
+//  LISTENERS EM TEMPO REAL
+//  Atualiza o site automaticamente quando algo muda no Firebase
 // ════════════════════════════════════════════════════════════
 function iniciarListeners() {
-
-  // ── Opiniões ──
+  // Opiniões
   const qOp = query(collection(db, 'opinioes'), orderBy('createdAt', 'desc'));
   onSnapshot(qOp, snap => {
     opinioes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -180,7 +122,7 @@ function iniciarListeners() {
     atualizarStats();
   });
 
-  // ── Eventos ──
+  // Eventos
   const qEv = query(collection(db, 'eventos'), orderBy('data'));
   onSnapshot(qEv, snap => {
     eventos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -189,7 +131,7 @@ function iniciarListeners() {
     atualizarStats();
   });
 
-  // ── Merenda ──
+  // Merenda
   onSnapshot(collection(db, 'merenda'), snap => {
     merenda = {};
     snap.docs.forEach(d => { merenda[d.id] = d.data().itens || []; });
@@ -201,7 +143,7 @@ function iniciarListeners() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  NAVEGAÇÃO ENTRE SEÇÕES
+//  NAVEGAÇÃO
 // ════════════════════════════════════════════════════════════
 window.showSection = function (id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -226,9 +168,9 @@ function renderInicio() {
   atualizarStats();
 
   // Merenda de hoje
-  const todayKey = dateKey(new Date());
+  const todayKey  = dateKey(new Date());
   const itensHoje = merenda[todayKey];
-  const box = document.getElementById('merenda-hoje-box');
+  const box       = document.getElementById('merenda-hoje-box');
   if (itensHoje && itensHoje.length) {
     box.innerHTML = itensHoje.map(i =>
       `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">
@@ -267,8 +209,6 @@ function renderInicio() {
 // ════════════════════════════════════════════════════════════
 //  SEÇÃO: OPINIÕES
 // ════════════════════════════════════════════════════════════
-
-/** Envia uma nova opinião para o Firestore */
 window.enviarOpiniao = async function () {
   if (!db) return;
   const texto = document.getElementById('opiniao-texto').value.trim();
@@ -276,16 +216,13 @@ window.enviarOpiniao = async function () {
   if (!texto) { toast('Escreva sua opinião antes de enviar.', 'error'); return; }
 
   const btn = document.getElementById('btn-enviar');
-  btn.disabled    = true;
-  btn.textContent = 'Enviando...';
+  btn.disabled = true; btn.textContent = 'Enviando...';
 
   try {
     await addDoc(collection(db, 'opinioes'), {
-      texto,
-      cat,
-      likes:     0,
+      texto, cat, likes: 0,
       createdAt: serverTimestamp(),
-      data:      new Date().toLocaleDateString('pt-BR')
+      data: new Date().toLocaleDateString('pt-BR')
     });
     document.getElementById('opiniao-texto').value = '';
     toast('✅ Opinião enviada! Obrigado pela contribuição.');
@@ -293,8 +230,7 @@ window.enviarOpiniao = async function () {
     toast('Erro ao enviar: ' + e.message, 'error');
   }
 
-  btn.disabled    = false;
-  btn.textContent = 'Enviar';
+  btn.disabled = false; btn.textContent = 'Enviar';
 };
 
 window.sortOpinioes = function (mode, btn) {
@@ -323,7 +259,7 @@ function renderOpinioes(mode) {
           <span>📅 ${o.data || ''}</span>
         </div>
       </div>
-      <button class="like-btn ${liked ? 'liked' : ''}" onclick="toggleLike('${o.id}')" title="Votar nesta sugestão">
+      <button class="like-btn ${liked ? 'liked' : ''}" onclick="toggleLike('${o.id}')" title="Votar">
         <span class="like-icon">👍</span>
         <span class="like-count">${o.likes || 0}</span>
       </button>
@@ -331,16 +267,13 @@ function renderOpinioes(mode) {
   }).join('');
 }
 
-/** Adiciona ou remove like de uma opinião */
 window.toggleLike = async function (id) {
   if (!db) return;
   const idx   = likedOpinioes.indexOf(id);
   const delta = idx === -1 ? 1 : -1;
-
   if (idx === -1) likedOpinioes.push(id);
   else likedOpinioes.splice(idx, 1);
   localStorage.setItem(LIKED_KEY, JSON.stringify(likedOpinioes));
-
   try {
     await updateDoc(doc(db, 'opinioes', id), { likes: increment(delta) });
   } catch (e) {
@@ -352,9 +285,7 @@ window.toggleLike = async function (id) {
 //  SEÇÃO: EVENTOS
 // ════════════════════════════════════════════════════════════
 function renderEventos() {
-  // Botão de adicionar só aparece para admin
   document.getElementById('btn-add-evento').style.display = isAdmin ? 'block' : 'none';
-
   const grid = document.getElementById('events-grid');
   if (!eventos.length) {
     grid.innerHTML = '<div class="loading-msg">Nenhum evento cadastrado.</div>';
@@ -374,12 +305,9 @@ function renderEventos() {
         <div class="event-meta">
           <span>🕐 ${e.hora || '—'}</span>
           <span>📍 ${e.local || '—'}</span>
-          ${isAdmin
-            ? `<button onclick="deleteEvento('${e.id}')"
-                style="margin-left:auto;background:none;border:none;color:#DC2626;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">
-                ✕ Remover
-               </button>`
-            : ''}
+          ${isAdmin ? `<button onclick="deleteEvento('${e.id}')"
+            style="margin-left:auto;background:none;border:none;color:#DC2626;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">
+            ✕ Remover</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -390,7 +318,6 @@ window.openEventoModal = function () {
   document.getElementById('modal-evento').classList.add('open');
 };
 
-/** Salva novo evento no Firestore */
 window.saveEvento = async function () {
   if (!db) return;
   const titulo = document.getElementById('evento-titulo').value.trim();
@@ -403,8 +330,7 @@ window.saveEvento = async function () {
   if (!titulo || !data_) { toast('Preencha pelo menos o título e a data.', 'error'); return; }
 
   const btn = document.getElementById('btn-save-evento');
-  btn.disabled    = true;
-  btn.textContent = 'Salvando...';
+  btn.disabled = true; btn.textContent = 'Salvando...';
 
   try {
     await addDoc(collection(db, 'eventos'), {
@@ -420,11 +346,9 @@ window.saveEvento = async function () {
     toast('Erro ao salvar: ' + e.message, 'error');
   }
 
-  btn.disabled    = false;
-  btn.textContent = 'Salvar';
+  btn.disabled = false; btn.textContent = 'Salvar';
 };
 
-/** Remove evento do Firestore */
 window.deleteEvento = async function (id) {
   if (!confirm('Remover este evento permanentemente?')) return;
   try {
@@ -456,14 +380,10 @@ function renderMerenda() {
       <div class="merenda-day-body">
         ${itens.length
           ? itens.map(it => `<div class="merenda-item"><div class="merenda-dot"></div><span>${it}</span></div>`).join('')
-          : '<div class="merenda-empty">Cardápio não informado</div>'
-        }
-        ${isAdmin
-          ? `<button class="merenda-edit-btn"
-               onclick="openMerendaEdit('${key}', '${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">
-               ✏ Editar
-             </button>`
-          : ''}
+          : '<div class="merenda-empty">Cardápio não informado</div>'}
+        ${isAdmin ? `<button class="merenda-edit-btn"
+          onclick="openMerendaEdit('${key}', '${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">
+          ✏ Editar</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -481,21 +401,17 @@ window.openMerendaEdit = function (key, label) {
   document.getElementById('modal-merenda').classList.add('open');
 };
 
-/** Salva cardápio no Firestore */
 window.saveMerenda = async function () {
   if (!db || !editingMerendaKey) return;
-
   const raw   = document.getElementById('merenda-input').value;
   const itens = raw.split('\n').map(s => s.trim()).filter(Boolean);
 
   const btn = document.getElementById('btn-save-merenda');
-  btn.disabled    = true;
-  btn.textContent = 'Salvando...';
+  btn.disabled = true; btn.textContent = 'Salvando...';
 
   try {
     await setDoc(doc(db, 'merenda', editingMerendaKey), {
-      itens,
-      updatedAt: serverTimestamp()
+      itens, updatedAt: serverTimestamp()
     });
     closeModal('modal-merenda');
     toast('✅ Cardápio salvo!');
@@ -503,8 +419,7 @@ window.saveMerenda = async function () {
     toast('Erro ao salvar: ' + e.message, 'error');
   }
 
-  btn.disabled    = false;
-  btn.textContent = 'Salvar';
+  btn.disabled = false; btn.textContent = 'Salvar';
 };
 
 // ════════════════════════════════════════════════════════════
@@ -512,7 +427,6 @@ window.saveMerenda = async function () {
 // ════════════════════════════════════════════════════════════
 window.openAdminModal = function () {
   if (isAdmin) {
-    // Desativa o modo admin
     isAdmin = false;
     const btn = document.getElementById('nav-admin-btn');
     btn.classList.remove('ativo');
@@ -539,7 +453,7 @@ window.checkPin = function () {
       btn.textContent = '✓ Admin ON';
       renderEventos();
       renderMerenda();
-      toast('✅ Modo admin ativado! Você pode editar merenda e eventos.');
+      toast('✅ Modo admin ativado!');
     } else {
       document.getElementById('pin-error').style.display = 'block';
       document.getElementById('pin-input').value = '';
@@ -548,35 +462,19 @@ window.checkPin = function () {
 };
 
 // ════════════════════════════════════════════════════════════
-//  MODAIS (abrir / fechar)
+//  MODAIS
 // ════════════════════════════════════════════════════════════
 window.closeModal = function (id) {
   document.getElementById(id).classList.remove('open');
 };
 
-// Fecha modal ao clicar fora dele (exceto o de setup)
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => {
-    if (e.target === m && m.id !== 'modal-setup') {
-      m.classList.remove('open');
-    }
+    if (e.target === m && m.id !== 'modal-setup') m.classList.remove('open');
   });
 });
 
 // ════════════════════════════════════════════════════════════
-//  INICIALIZAÇÃO
-//  Tenta carregar a config do Firebase salva no navegador.
-//  Se não existir, mostra o modal de configuração.
+//  INICIALIZAÇÃO — conecta automaticamente ao abrir o site
 // ════════════════════════════════════════════════════════════
-const savedConfig = localStorage.getItem(STORAGE_KEY);
-if (savedConfig) {
-  try {
-    conectarFirebase(JSON.parse(savedConfig));
-  } catch (e) {
-    localStorage.removeItem(STORAGE_KEY);
-    hideLoading();
-  }
-} else {
-  // Sem config salva: mostra tela de setup e esconde loading
-  hideLoading();
-}
+iniciarFirebase();
