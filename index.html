@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IFPA - Campus Cametá</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- TELA DE CARREGAMENTO -->
+<div id="loading-screen">
+  <div class="loading-logo">IFPA</div>
+  <div class="loading-txt">Conectando ao servidor...</div>
+  <div class="loading-bar"><div class="loading-bar-inner"></div></div>
+</div>
+
+<!-- NOTIFICAÇÃO -->
+<div id="toast"></div>
+
+<!-- NAVEGAÇÃO -->
+<nav>
+  <div class="nav-logo">
+    <div class="logo-badge">IFPA</div>
+    <div>
+      <div class="nav-title">Campus Cametá</div>
+      <div class="nav-subtitle">Instituto Federal do Pará</div>
+    </div>
+  </div>
+  <div class="nav-links">
+    <span class="nav-link active" onclick="showSection('inicio')">Início</span>
+    <span class="nav-link" onclick="showSection('opiniao')">Opiniões</span>
+    <span class="nav-link" onclick="showSection('eventos')">Eventos</span>
+    <span class="nav-link" onclick="showSection('merenda')">Merenda</span>
+  </div>
+  <button class="nav-admin-btn" id="nav-admin-btn" onclick="openAdminModal()">⚙ Admin</button>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">Grêmio Estudantil · IFPA Cametá</div>
+  <h1>Mural do Estudante<br>IFPA Cametá</h1>
+  <p>Fique por dentro dos eventos, veja a merenda do dia e contribua com suas ideias para melhorar o campus.</p>
+  <div class="hero-btns">
+    <button class="btn-hero" onclick="showSection('opiniao')">Dar minha opinião</button>
+    <button class="btn-hero-outline" onclick="showSection('merenda')">Ver merenda de hoje</button>
+  </div>
+</div>
+
+<!-- ABAS -->
+<div class="tabs-wrapper">
+  <div class="tab active" onclick="showSection('inicio')" id="tab-inicio">🏠 Início</div>
+  <div class="tab" onclick="showSection('opiniao')" id="tab-opiniao">💬 Opiniões</div>
+  <div class="tab" onclick="showSection('eventos')" id="tab-eventos">📅 Eventos</div>
+  <div class="tab" onclick="showSection('merenda')" id="tab-merenda">🍽 Merenda</div>
+</div>
+
+<!-- CONTEÚDO PRINCIPAL -->
+<div class="main">
+
+  <!-- INÍCIO -->
+  <div class="section active" id="section-inicio">
+    <div class="stats-strip">
+      <div class="stat-card">
+        <div class="stat-number" id="stat-opiniao">—</div>
+        <div class="stat-label">Opiniões enviadas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="stat-eventos">—</div>
+        <div class="stat-label">Eventos cadastrados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="stat-likes">—</div>
+        <div class="stat-label">Likes em opiniões</div>
+      </div>
+    </div>
+
+    <div class="card-box">
+      <h3 class="card-box-title">🍽 Merenda de Hoje</h3>
+      <div id="merenda-hoje-box" class="card-box-content">Carregando...</div>
+    </div>
+
+    <div class="card-box">
+      <h3 class="card-box-title">📌 Próximo Evento</h3>
+      <div id="proximo-evento-box" class="card-box-content">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- OPINIÕES -->
+  <div class="section" id="section-opiniao">
+    <div class="section-header">
+      <h2 class="section-title">💬 Caixa de Opiniões</h2>
+    </div>
+
+    <div class="opinion-form">
+      <h3>Qual sua sugestão para melhorar o campus?</h3>
+      <div style="margin-bottom:10px">
+        <select id="opiniao-categoria" class="form-select" style="width:auto;display:inline-block;min-width:200px">
+          <option value="Infraestrutura">🏗 Infraestrutura</option>
+          <option value="Ensino">📚 Ensino</option>
+          <option value="Esporte e Lazer">⚽ Esporte e Lazer</option>
+          <option value="Alimentação">🍽 Alimentação</option>
+          <option value="Saúde">🏥 Saúde</option>
+          <option value="Outro">💡 Outro</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <textarea class="opinion-textarea" id="opiniao-texto" placeholder="Escreva sua opinião ou sugestão aqui..."></textarea>
+        <button class="btn-submit" id="btn-enviar" onclick="enviarOpiniao()">Enviar</button>
+      </div>
+    </div>
+
+    <div class="sort-bar">
+      <span style="font-size:12px;color:var(--cinza);align-self:center">Ordenar:</span>
+      <button class="sort-btn active" onclick="sortOpinioes('likes', this)">🔥 Mais votadas</button>
+      <button class="sort-btn" onclick="sortOpinioes('recentes', this)">🕐 Mais recentes</button>
+    </div>
+
+    <div class="opinions-list" id="opinions-list">
+      <div class="loading-msg">Carregando opiniões...</div>
+    </div>
+  </div>
+
+  <!-- EVENTOS -->
+  <div class="section" id="section-eventos">
+    <div class="section-header">
+      <h2 class="section-title">📅 Eventos do Campus</h2>
+      <button class="btn-submit" id="btn-add-evento" style="display:none" onclick="openEventoModal()">+ Adicionar Evento</button>
+    </div>
+    <div class="events-grid" id="events-grid">
+      <div class="loading-msg">Carregando eventos...</div>
+    </div>
+  </div>
+
+  <!-- MERENDA -->
+  <div class="section" id="section-merenda">
+    <div class="section-header">
+      <h2 class="section-title">🍽 Cardápio da Merenda</h2>
+    </div>
+    <div class="merenda-controls">
+      <div class="week-nav">
+        <button onclick="changeWeek(-1)">‹</button>
+        <span class="week-label" id="week-label">Semana atual</span>
+        <button onclick="changeWeek(1)">›</button>
+      </div>
+      <span style="font-size:12px;color:var(--cinza)">Atualizado pelos servidores do campus</span>
+    </div>
+    <div class="merenda-grid" id="merenda-grid"></div>
+  </div>
+
+</div><!-- fim .main -->
+
+<!-- ═══════════════ MODAIS ═══════════════ -->
+
+<!-- MODAL: CONFIGURAÇÃO FIREBASE (primeira vez) -->
+<div class="modal-overlay open" id="modal-setup">
+  <div class="modal" style="max-width:520px">
+    <h2>🔥 Conectar ao Firebase</h2>
+    <p style="font-size:13px;color:var(--texto-muted);margin-bottom:1.25rem;line-height:1.7">
+      Cole abaixo o <strong>firebaseConfig</strong> do seu projeto para salvar os dados no servidor.<br>
+      Acesse: <strong>console.firebase.google.com</strong> → ⚙ Configurações → Seus aplicativos → app web → SDK → <strong>CDN</strong>.
+    </p>
+    <div class="form-group">
+      <label class="form-label">Cole aqui o firebaseConfig (aceita formato JavaScript ou JSON):</label>
+      <textarea class="form-ta" id="firebase-config-input" style="font-family:monospace;font-size:12px;min-height:180px"
+        placeholder="Exemplo do que o Firebase vai mostrar:
+
+const firebaseConfig = {
+  apiKey: &quot;AIzaSy...&quot;,
+  authDomain: &quot;meu-projeto.firebaseapp.com&quot;,
+  projectId: &quot;meu-projeto&quot;,
+  storageBucket: &quot;meu-projeto.appspot.com&quot;,
+  messagingSenderId: &quot;123456789&quot;,
+  appId: &quot;1:123:web:abc&quot;
+};
+
+Cole o bloco inteiro — o site detecta automaticamente."></textarea>
+      <p style="font-size:12px;color:var(--cinza);margin-top:6px">
+        💡 Feito isso uma vez, a configuração fica salva no navegador automaticamente.
+      </p>
+    </div>
+    <div id="setup-error" style="color:#DC2626;font-size:13px;margin-bottom:10px;display:none"></div>
+    <div class="modal-footer">
+      <button class="btn-save" id="btn-conectar" onclick="salvarConfigFirebase()">Conectar ao Firebase →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PIN ADMIN -->
+<div class="modal-overlay" id="modal-admin">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close" onclick="closeModal('modal-admin')">✕</button>
+    <h2>🔐 Área dos Servidores</h2>
+    <div class="admin-pin">
+      <p style="font-size:14px;color:var(--texto-muted)">Digite o PIN para gerenciar eventos e merenda.</p>
+      <input class="pin-input" id="pin-input" type="password" maxlength="4" placeholder="····" oninput="checkPin()">
+      <div class="pin-error" id="pin-error">PIN incorreto. Tente novamente.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR MERENDA -->
+<div class="modal-overlay" id="modal-merenda">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-merenda')">✕</button>
+    <h2 id="modal-merenda-title">Editar Merenda</h2>
+    <div class="form-group">
+      <label class="form-label">Itens do cardápio (um por linha)</label>
+      <textarea class="form-ta" id="merenda-input" placeholder="Ex:&#10;Arroz com feijão&#10;Frango grelhado&#10;Salada de alface&#10;Suco de goiaba"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('modal-merenda')">Cancelar</button>
+      <button class="btn-save" id="btn-save-merenda" onclick="saveMerenda()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NOVO EVENTO -->
+<div class="modal-overlay" id="modal-evento">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-evento')">✕</button>
+    <h2>📅 Novo Evento</h2>
+    <div class="form-group">
+      <label class="form-label">Título do evento</label>
+      <input class="form-input" id="evento-titulo" type="text" placeholder="Ex: Semana de Ciência e Tecnologia">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descrição</label>
+      <textarea class="form-ta" id="evento-desc" placeholder="Descreva o evento..."></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Data</label>
+        <input class="form-input" id="evento-data" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Horário</label>
+        <input class="form-input" id="evento-hora" type="time">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">Local</label>
+        <input class="form-input" id="evento-local" type="text" placeholder="Ex: Auditório">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoria</label>
+        <select class="form-select" id="evento-cat">
+          <option value="academico">Acadêmico</option>
+          <option value="cultura">Cultura</option>
+          <option value="esporte">Esporte</option>
+          <option value="geral">Geral</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal('modal-evento')">Cancelar</button>
+      <button class="btn-save" id="btn-save-evento" onclick="saveEvento()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <strong>IFPA Campus Cametá</strong> · Portal do Estudante · Desenvolvido pelo Grêmio Estudantil
+</footer>
+
+<!-- Firebase SDK + lógica do site -->
+<script type="module" src="script.js"></script>
+
+</body>
+</html>
