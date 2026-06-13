@@ -26,7 +26,7 @@ body {
 }
 
 /* ════════════════════════════════════════
-   TELA DE CARREGAMENTO
+   TELA DE LOADING 
 ════════════════════════════════════════ */
 #loading-screen {
   position: fixed; inset: 0;
@@ -74,7 +74,7 @@ body {
 #toast.error { background: #DC2626; }
 
 /* ════════════════════════════════════════
-   NAVEGAÇÃO
+   NAV
 ════════════════════════════════════════ */
 nav {
   background: var(--verde-escuro); padding: 0 2rem;
@@ -167,7 +167,7 @@ nav {
 .loading-msg    { text-align: center; padding: 2rem; color: var(--cinza); font-size: 14px; }
 
 /* ════════════════════════════════════════
-   CARDS GENÉRICOS (início)
+   CARDS GENÉRICOS DO INÍCIO
 ════════════════════════════════════════ */
 .card-box {
   background: #fff; border: 1px solid var(--border);
@@ -191,7 +191,7 @@ nav {
 .stat-label  { font-size: 12px; color: var(--texto-muted); margin-top: 2px; }
 
 /* ════════════════════════════════════════
-   OPINIÕES
+   OPINIÕES (Não aceitar a opnião do curso de pesca kkkk)
 ════════════════════════════════════════ */
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
 .section-title  { font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 600; }

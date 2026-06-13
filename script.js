@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-//  FIREBASE — importações via CDN
+//  FIREBASE — IMPORTAÇÂO FOI FEITA COM CDN
 // ════════════════════════════════════════════════════════════
 import { initializeApp }  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
@@ -11,7 +11,6 @@ import {
 
 // ════════════════════════════════════════════════════════════
 //  CONFIGURAÇÃO FIREBASE — credenciais fixas no código
-//  (não pede mais para o usuário configurar)
 // ════════════════════════════════════════════════════════════
 const firebaseConfig = {
   apiKey:            "AIzaSyAUkleGF0bBmPUmSNFJV6spuIvxvfsejDM",
@@ -25,7 +24,7 @@ const firebaseConfig = {
 
 // ════════════════════════════════════════════════════════════
 //  CONFIGURAÇÕES DO SITE
-//  ⚠ Mude o ADMIN_PIN para o PIN que preferir (4 dígitos)
+//  A SENHA É O QUE CONSTA NO ADMIN_PIN (1234)
 // ════════════════════════════════════════════════════════════
 const ADMIN_PIN = '1234';
 const LIKED_KEY = 'ifpa_liked'; // opiniões que o usuário já curtiu
@@ -474,7 +473,4 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   });
 });
 
-// ════════════════════════════════════════════════════════════
-//  INICIALIZAÇÃO — conecta automaticamente ao abrir o site
-// ════════════════════════════════════════════════════════════
 iniciarFirebase();

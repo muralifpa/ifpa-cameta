@@ -152,41 +152,6 @@
 </div><!-- fim .main -->
 
 <!-- ═══════════════ MODAIS ═══════════════ -->
-
-<!-- MODAL: CONFIGURAÇÃO FIREBASE (primeira vez) -->
-<div class="modal-overlay open" id="modal-setup">
-  <div class="modal" style="max-width:520px">
-    <h2>🔥 Conectar ao Firebase</h2>
-    <p style="font-size:13px;color:var(--texto-muted);margin-bottom:1.25rem;line-height:1.7">
-      Cole abaixo o <strong>firebaseConfig</strong> do seu projeto para salvar os dados no servidor.<br>
-      Acesse: <strong>console.firebase.google.com</strong> → ⚙ Configurações → Seus aplicativos → app web → SDK → <strong>CDN</strong>.
-    </p>
-    <div class="form-group">
-      <label class="form-label">Cole aqui o firebaseConfig (aceita formato JavaScript ou JSON):</label>
-      <textarea class="form-ta" id="firebase-config-input" style="font-family:monospace;font-size:12px;min-height:180px"
-        placeholder="Exemplo do que o Firebase vai mostrar:
-
-const firebaseConfig = {
-  apiKey: &quot;AIzaSy...&quot;,
-  authDomain: &quot;meu-projeto.firebaseapp.com&quot;,
-  projectId: &quot;meu-projeto&quot;,
-  storageBucket: &quot;meu-projeto.appspot.com&quot;,
-  messagingSenderId: &quot;123456789&quot;,
-  appId: &quot;1:123:web:abc&quot;
-};
-
-Cole o bloco inteiro — o site detecta automaticamente."></textarea>
-      <p style="font-size:12px;color:var(--cinza);margin-top:6px">
-        💡 Feito isso uma vez, a configuração fica salva no navegador automaticamente.
-      </p>
-    </div>
-    <div id="setup-error" style="color:#DC2626;font-size:13px;margin-bottom:10px;display:none"></div>
-    <div class="modal-footer">
-      <button class="btn-save" id="btn-conectar" onclick="salvarConfigFirebase()">Conectar ao Firebase →</button>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL: PIN ADMIN -->
 <div class="modal-overlay" id="modal-admin">
   <div class="modal" style="max-width:360px">
@@ -265,7 +230,7 @@ Cole o bloco inteiro — o site detecta automaticamente."></textarea>
   <strong>IFPA Campus Cametá</strong> · Portal do Estudante · Desenvolvido pelo Grêmio Estudantil
 </footer>
 
-<!-- Firebase SDK + lógica do site -->
+<!-- Firebase SDK + lógica do site *NÃO ALTERAR!!!!* -->
 <script type="module" src="script.js"></script>
 
 </body>
