@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════
-//  FIREBASE — IMPORTAÇÂO FOI FEITA COM CDN
+//  FIREBASE — importações via CDN
 // ════════════════════════════════════════════════════════════
-import { initializeApp }  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getFirestore, collection, doc,
   addDoc, setDoc, deleteDoc,
@@ -10,7 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ════════════════════════════════════════════════════════════
-//  CONFIGURAÇÃO FIREBASE — credenciais fixas no código
+//  CONFIGURAÇÃO FIREBASE — credenciais fixas
 // ════════════════════════════════════════════════════════════
 const firebaseConfig = {
   apiKey:            "AIzaSyAUkleGF0bBmPUmSNFJV6spuIvxvfsejDM",
@@ -24,10 +24,12 @@ const firebaseConfig = {
 
 // ════════════════════════════════════════════════════════════
 //  CONFIGURAÇÕES DO SITE
-//  A SENHA É O QUE CONSTA NO ADMIN_PIN (1234)
+//  ⚠ Mude o ADMIN_PIN para o PIN que preferir (4 dígitos)
 // ════════════════════════════════════════════════════════════
-const ADMIN_PIN = '1234';
-const LIKED_KEY = 'ifpa_liked'; // opiniões que o usuário já curtiu
+const ADMIN_PIN    = '1234';
+const LIKED_KEY    = 'ifpa_liked';
+const COOLDOWN_KEY = 'ifpa_ultimo_comentario'; // timestamp do último envio
+const COOLDOWN_MS  = 3 * 60 * 1000;           // 3 minutos em milissegundos
 
 // ════════════════════════════════════════════════════════════
 //  CONSTANTES DE DATA
@@ -44,17 +46,19 @@ let isAdmin           = false;
 let currentSort       = 'likes';
 let currentWeekOffset = 0;
 let editingMerendaKey = null;
+let cooldownInterval  = null;
 
 let opinioes      = [];
 let eventos       = [];
 let merenda       = {};
+let membros       = [];
 let likedOpinioes = JSON.parse(localStorage.getItem(LIKED_KEY) || '[]');
 
 // ════════════════════════════════════════════════════════════
 //  UTILITÁRIOS
 // ════════════════════════════════════════════════════════════
-function dateKey(d)  { return d.toISOString().slice(0, 10); }
-function isToday(d)  { return dateKey(d) === dateKey(new Date()); }
+function dateKey(d) { return d.toISOString().slice(0, 10); }
+function isToday(d) { return dateKey(d) === dateKey(new Date()); }
 
 function getWeekDates(offset) {
   const now    = new Date();
@@ -69,7 +73,7 @@ function getWeekDates(offset) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  TOAST (notificação)
+//  TOAST
 // ════════════════════════════════════════════════════════════
 function toast(msg, tipo = '') {
   const el = document.getElementById('toast');
@@ -89,20 +93,15 @@ function hideLoading() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  INICIALIZAÇÃO DO FIREBASE
+//  FIREBASE — inicialização
 // ════════════════════════════════════════════════════════════
 function iniciarFirebase() {
   try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-
-    // Esconde o modal de setup caso ainda esteja visível
-    const modalSetup = document.getElementById('modal-setup');
-    if (modalSetup) modalSetup.classList.remove('open');
-
     iniciarListeners();
   } catch (e) {
-    console.error('Erro ao conectar ao Firebase:', e);
+    console.error('Erro Firebase:', e);
     hideLoading();
     toast('Erro ao conectar ao servidor. Recarregue a página.', 'error');
   }
@@ -110,20 +109,17 @@ function iniciarFirebase() {
 
 // ════════════════════════════════════════════════════════════
 //  LISTENERS EM TEMPO REAL
-//  Atualiza o site automaticamente quando algo muda no Firebase
 // ════════════════════════════════════════════════════════════
 function iniciarListeners() {
   // Opiniões
-  const qOp = query(collection(db, 'opinioes'), orderBy('createdAt', 'desc'));
-  onSnapshot(qOp, snap => {
+  onSnapshot(query(collection(db, 'opinioes'), orderBy('createdAt', 'desc')), snap => {
     opinioes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderOpinioes(currentSort);
     atualizarStats();
   });
 
   // Eventos
-  const qEv = query(collection(db, 'eventos'), orderBy('data'));
-  onSnapshot(qEv, snap => {
+  onSnapshot(query(collection(db, 'eventos'), orderBy('data')), snap => {
     eventos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderEventos();
     renderInicio();
@@ -138,7 +134,14 @@ function iniciarListeners() {
     renderInicio();
   });
 
+  // Membros do grêmio
+  onSnapshot(query(collection(db, 'membros'), orderBy('createdAt', 'asc')), snap => {
+    membros = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGremio();
+  });
+
   hideLoading();
+  verificarCooldown(); // verifica se ainda há cooldown ativo ao carregar
 }
 
 // ════════════════════════════════════════════════════════════
@@ -151,6 +154,7 @@ window.showSection = function (id) {
   document.getElementById('tab-' + id).classList.add('active');
   if (id === 'merenda') renderMerenda();
   if (id === 'inicio')  renderInicio();
+  if (id === 'gremio')  renderGremio();
 };
 
 // ════════════════════════════════════════════════════════════
@@ -206,10 +210,54 @@ function renderInicio() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  SEÇÃO: OPINIÕES
+//  SEÇÃO: OPINIÕES — cooldown de 3 minutos
 // ════════════════════════════════════════════════════════════
+
+/** Verifica se o usuário ainda está em cooldown ao abrir o site */
+function verificarCooldown() {
+  const ultimo = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
+  const agora  = Date.now();
+  const restante = COOLDOWN_MS - (agora - ultimo);
+  if (restante > 0) iniciarCooldownUI(restante);
+}
+
+/** Inicia a contagem regressiva na tela */
+function iniciarCooldownUI(msRestante) {
+  const btn    = document.getElementById('btn-enviar');
+  const aviso  = document.getElementById('cooldown-aviso');
+  const timer  = document.getElementById('cooldown-timer');
+  btn.disabled = true;
+  aviso.style.display = 'block';
+  clearInterval(cooldownInterval);
+
+  let segundos = Math.ceil(msRestante / 1000);
+  const atualizar = () => {
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    timer.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    if (segundos <= 0) {
+      clearInterval(cooldownInterval);
+      btn.disabled        = false;
+      aviso.style.display = 'none';
+    }
+    segundos--;
+  };
+  atualizar();
+  cooldownInterval = setInterval(atualizar, 1000);
+}
+
+/** Envia opinião com verificação de cooldown */
 window.enviarOpiniao = async function () {
   if (!db) return;
+
+  // Verifica cooldown
+  const ultimo    = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
+  const restante  = COOLDOWN_MS - (Date.now() - ultimo);
+  if (restante > 0) {
+    iniciarCooldownUI(restante);
+    return;
+  }
+
   const texto = document.getElementById('opiniao-texto').value.trim();
   const cat   = document.getElementById('opiniao-categoria').value;
   if (!texto) { toast('Escreva sua opinião antes de enviar.', 'error'); return; }
@@ -224,12 +272,14 @@ window.enviarOpiniao = async function () {
       data: new Date().toLocaleDateString('pt-BR')
     });
     document.getElementById('opiniao-texto').value = '';
+    localStorage.setItem(COOLDOWN_KEY, String(Date.now()));
+    iniciarCooldownUI(COOLDOWN_MS);
     toast('✅ Opinião enviada! Obrigado pela contribuição.');
   } catch (e) {
+    btn.disabled    = false;
+    btn.textContent = 'Enviar';
     toast('Erro ao enviar: ' + e.message, 'error');
   }
-
-  btn.disabled = false; btn.textContent = 'Enviar';
 };
 
 window.sortOpinioes = function (mode, btn) {
@@ -256,6 +306,11 @@ function renderOpinioes(mode) {
         <div class="opinion-meta">
           <span class="opinion-tag">${o.cat}</span>
           <span>📅 ${o.data || ''}</span>
+          ${isAdmin
+            ? `<button class="opinion-del-btn" onclick="deleteOpiniao('${o.id}')" title="Remover opinião">
+                 🗑 Remover
+               </button>`
+            : ''}
         </div>
       </div>
       <button class="like-btn ${liked ? 'liked' : ''}" onclick="toggleLike('${o.id}')" title="Votar">
@@ -265,6 +320,17 @@ function renderOpinioes(mode) {
     </div>`;
   }).join('');
 }
+
+/** Admin remove uma opinião */
+window.deleteOpiniao = async function (id) {
+  if (!confirm('Remover esta opinião permanentemente?')) return;
+  try {
+    await deleteDoc(doc(db, 'opinioes', id));
+    toast('Opinião removida.');
+  } catch (e) {
+    toast('Erro ao remover: ' + e.message, 'error');
+  }
+};
 
 window.toggleLike = async function (id) {
   if (!db) return;
@@ -304,9 +370,11 @@ function renderEventos() {
         <div class="event-meta">
           <span>🕐 ${e.hora || '—'}</span>
           <span>📍 ${e.local || '—'}</span>
-          ${isAdmin ? `<button onclick="deleteEvento('${e.id}')"
-            style="margin-left:auto;background:none;border:none;color:#DC2626;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">
-            ✕ Remover</button>` : ''}
+          ${isAdmin
+            ? `<button onclick="deleteEvento('${e.id}')"
+                style="margin-left:auto;background:none;border:none;color:#DC2626;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif">
+                ✕ Remover</button>`
+            : ''}
         </div>
       </div>
     </div>`;
@@ -344,7 +412,6 @@ window.saveEvento = async function () {
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'error');
   }
-
   btn.disabled = false; btn.textContent = 'Salvar';
 };
 
@@ -380,9 +447,11 @@ function renderMerenda() {
         ${itens.length
           ? itens.map(it => `<div class="merenda-item"><div class="merenda-dot"></div><span>${it}</span></div>`).join('')
           : '<div class="merenda-empty">Cardápio não informado</div>'}
-        ${isAdmin ? `<button class="merenda-edit-btn"
-          onclick="openMerendaEdit('${key}', '${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">
-          ✏ Editar</button>` : ''}
+        ${isAdmin
+          ? `<button class="merenda-edit-btn"
+               onclick="openMerendaEdit('${key}', '${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">
+               ✏ Editar</button>`
+          : ''}
       </div>
     </div>`;
   }).join('');
@@ -417,8 +486,87 @@ window.saveMerenda = async function () {
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'error');
   }
-
   btn.disabled = false; btn.textContent = 'Salvar';
+};
+
+// ════════════════════════════════════════════════════════════
+//  SEÇÃO: GRÊMIO
+// ════════════════════════════════════════════════════════════
+function renderGremio() {
+  document.getElementById('btn-add-membro').style.display = isAdmin ? 'block' : 'none';
+  const grid = document.getElementById('gremio-grid');
+  if (!membros.length) {
+    grid.innerHTML = '<div class="loading-msg">Nenhum membro cadastrado ainda.</div>';
+    return;
+  }
+  grid.innerHTML = membros.map(m => `
+    <div class="membro-card">
+      <div class="membro-foto-wrap">
+        ${m.foto
+          ? `<img src="${m.foto}" alt="Foto de ${m.nome}" onerror="this.parentElement.innerHTML='<div class=membro-foto-placeholder>👤</div>'">`
+          : '<div class="membro-foto-placeholder">👤</div>'}
+      </div>
+      <div class="membro-body">
+        ${m.cargo ? `<div class="membro-cargo">${m.cargo}</div>` : ''}
+        <div class="membro-nome">${m.nome}</div>
+        <div class="membro-info">
+          ${m.idade  ? `<span>🎂 ${m.idade} anos</span>` : ''}
+          ${m.turma  ? `<span>📚 ${m.turma}</span>` : ''}
+          ${m.email  ? `<span>✉️ <a href="mailto:${m.email}">${m.email}</a></span>` : ''}
+          ${m.instagram ? `<span>📸 <a href="https://instagram.com/${m.instagram.replace('@','')}" target="_blank">${m.instagram}</a></span>` : ''}
+        </div>
+      </div>
+      ${isAdmin
+        ? `<button class="membro-del-btn" onclick="deleteMembro('${m.id}')">✕ Remover</button>`
+        : ''}
+    </div>`
+  ).join('');
+}
+
+window.openMembroModal = function () {
+  // Limpa os campos
+  ['foto','nome','idade','turma','cargo','email','instagram'].forEach(f => {
+    document.getElementById('membro-' + f).value = '';
+  });
+  document.getElementById('modal-membro').classList.add('open');
+};
+
+window.saveMembro = async function () {
+  if (!db) return;
+  const nome      = document.getElementById('membro-nome').value.trim();
+  const foto      = document.getElementById('membro-foto').value.trim();
+  const idade     = document.getElementById('membro-idade').value.trim();
+  const turma     = document.getElementById('membro-turma').value.trim();
+  const cargo     = document.getElementById('membro-cargo').value.trim();
+  const email     = document.getElementById('membro-email').value.trim();
+  const instagram = document.getElementById('membro-instagram').value.trim();
+
+  if (!nome) { toast('O nome é obrigatório.', 'error'); return; }
+
+  const btn = document.getElementById('btn-save-membro');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  try {
+    await addDoc(collection(db, 'membros'), {
+      nome, foto, idade, turma, cargo, email, instagram,
+      createdAt: serverTimestamp()
+    });
+    closeModal('modal-membro');
+    toast('✅ Membro adicionado!');
+  } catch (e) {
+    toast('Erro ao salvar: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Salvar';
+};
+
+window.deleteMembro = async function (id) {
+  if (!confirm('Remover este membro do grêmio?')) return;
+  try {
+    await deleteDoc(doc(db, 'membros', id));
+    toast('Membro removido.');
+  } catch (e) {
+    toast('Erro ao remover: ' + e.message, 'error');
+  }
 };
 
 // ════════════════════════════════════════════════════════════
@@ -432,6 +580,8 @@ window.openAdminModal = function () {
     btn.textContent = '⚙ Admin';
     renderEventos();
     renderMerenda();
+    renderOpinioes(currentSort);
+    renderGremio();
     toast('Modo admin desativado.');
     return;
   }
@@ -452,6 +602,8 @@ window.checkPin = function () {
       btn.textContent = '✓ Admin ON';
       renderEventos();
       renderMerenda();
+      renderOpinioes(currentSort);
+      renderGremio();
       toast('✅ Modo admin ativado!');
     } else {
       document.getElementById('pin-error').style.display = 'block';
@@ -469,8 +621,11 @@ window.closeModal = function (id) {
 
 document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => {
-    if (e.target === m && m.id !== 'modal-setup') m.classList.remove('open');
+    if (e.target === m) m.classList.remove('open');
   });
 });
 
+// ════════════════════════════════════════════════════════════
+//  INICIALIZAÇÃO
+// ════════════════════════════════════════════════════════════
 iniciarFirebase();
