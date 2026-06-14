@@ -381,4 +381,5 @@ footer strong { color: rgba(255,255,255,0.9); }
   .form-row     { flex-direction: column; }
   .btn-submit   { width: 100%; }
   .hero         { padding: 40px 1.5rem 50px; }
+
 }
