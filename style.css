@@ -408,7 +408,7 @@ footer strong { color: rgba(255,255,255,0.9); }
 
 .membro-foto-wrap {
   width: 100%;
-  height: 180px;
+  height: 260px;
   background: var(--verde-bg);
   overflow: hidden;
   display: flex;
