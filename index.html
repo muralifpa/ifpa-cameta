@@ -115,6 +115,22 @@
       </div>
     </div>
 
+    <div class="form-row">
+      <textarea
+        class="opinion-textarea"
+        name="opiniao"
+        placeholder="Escreva sua opinião ou sugestão aqui..."
+        required
+      ></textarea>
+
+      <button type="submit" class="btn-submit">
+        Enviar
+      </button>
+    </div>
+
+  </form>
+</div>
+
     <div class="sort-bar">
       <span style="font-size:12px;color:var(--cinza);align-self:center">Ordenar:</span>
       <button class="sort-btn active" onclick="sortOpinioes('likes', this)">🔥 Mais votadas</button>
@@ -295,6 +311,41 @@
 </footer>
 
 <!-- Firebase SDK + lógica do site *NÃO ALTERAR!!!!* -->
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("form-sugestao");
+
+  if (!form) return;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const data = new FormData(form);
+
+    try {
+      const res = await fetch("https://formspree.io/f/xgobrwpa", {
+        method: "POST",
+        body: data,
+        headers: {
+          "Accept": "application/json"
+        }
+      });
+
+      if (res.ok) {
+        alert("Sugestão enviada com sucesso!");
+        form.reset();
+      } else {
+        alert("Erro ao enviar.");
+      }
+
+    } catch (err) {
+      alert("Erro de conexão.");
+    }
+  });
+});
+</script>
+
 <script type="module" src="script.js"></script>
 
 </body>
