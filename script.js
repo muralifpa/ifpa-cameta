@@ -10,7 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 // ════════════════════════════════════════════════════════════
-//  CONFIGURAÇÃO FIREBASE — credenciais fixas
+//  CONFIGURAÇÃO FIREBASE
 // ════════════════════════════════════════════════════════════
 const firebaseConfig = {
   apiKey:            "AIzaSyAUkleGF0bBmPUmSNFJV6spuIvxvfsejDM",
@@ -23,23 +23,23 @@ const firebaseConfig = {
 };
 
 // ════════════════════════════════════════════════════════════
-//  CONFIGURAÇÕES DO SITE
-//  ⚠ Mude o ADMIN_PIN para o PIN que preferir (4 dígitos)
+//  CONFIGURAÇÕES
 // ════════════════════════════════════════════════════════════
 const ADMIN_PIN    = '1234';
 const LIKED_KEY    = 'ifpa_liked';
-const COOLDOWN_KEY = 'ifpa_ultimo_comentario'; // timestamp do último envio
-const COOLDOWN_MS  = 3 * 60 * 1000;           // 3 minutos em milissegundos
+const COOLDOWN_KEY = 'ifpa_ultimo_comentario';
+const COOLDOWN_MS  = 3 * 60 * 1000;
+const AVALIADO_KEY = 'ifpa_avaliado'; // dias que o usuário já avaliou
 
 // ════════════════════════════════════════════════════════════
-//  CONSTANTES DE DATA
+//  CONSTANTES
 // ════════════════════════════════════════════════════════════
 const DIAS       = ['Segunda','Terça','Quarta','Quinta','Sexta'];
 const DIAS_SHORT = ['SEG','TER','QUA','QUI','SEX'];
 const MESES      = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
 // ════════════════════════════════════════════════════════════
-//  ESTADO DA APLICAÇÃO
+//  ESTADO
 // ════════════════════════════════════════════════════════════
 let db                = null;
 let isAdmin           = false;
@@ -47,12 +47,17 @@ let currentSort       = 'likes';
 let currentWeekOffset = 0;
 let editingMerendaKey = null;
 let cooldownInterval  = null;
+let eventoTabAtual    = 'proximos';
+let filtroCategoria   = null;  // filtro de categoria ativo
+let avaliacaoKey      = null;  // dia sendo avaliado
 
 let opinioes      = [];
 let eventos       = [];
 let merenda       = {};
+let avaliacoes    = {}; // { 'YYYY-MM-DD': { '😋': 3, '😊': 5, ... } }
 let membros       = [];
-let likedOpinioes = JSON.parse(localStorage.getItem(LIKED_KEY) || '[]');
+let likedOpinioes = JSON.parse(localStorage.getItem(LIKED_KEY)    || '[]');
+let avaliadoDias  = JSON.parse(localStorage.getItem(AVALIADO_KEY) || '[]');
 
 // ════════════════════════════════════════════════════════════
 //  UTILITÁRIOS
@@ -76,7 +81,7 @@ function getWeekDates(offset) {
 //  TOAST
 // ════════════════════════════════════════════════════════════
 function toast(msg, tipo = '') {
-  const el = document.getElementById('toast');
+  const el  = document.getElementById('toast');
   el.textContent = msg;
   el.className   = 'show' + (tipo ? ' ' + tipo : '');
   clearTimeout(el._timer);
@@ -84,7 +89,7 @@ function toast(msg, tipo = '') {
 }
 
 // ════════════════════════════════════════════════════════════
-//  TELA DE CARREGAMENTO
+//  LOADING
 // ════════════════════════════════════════════════════════════
 function hideLoading() {
   const el = document.getElementById('loading-screen');
@@ -93,7 +98,7 @@ function hideLoading() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  FIREBASE — inicialização
+//  FIREBASE
 // ════════════════════════════════════════════════════════════
 function iniciarFirebase() {
   try {
@@ -103,18 +108,16 @@ function iniciarFirebase() {
   } catch (e) {
     console.error('Erro Firebase:', e);
     hideLoading();
-    toast('Erro ao conectar ao servidor. Recarregue a página.', 'error');
+    toast('Erro ao conectar. Recarregue a página.', 'error');
   }
 }
 
-// ════════════════════════════════════════════════════════════
-//  LISTENERS EM TEMPO REAL
-// ════════════════════════════════════════════════════════════
 function iniciarListeners() {
   // Opiniões
   onSnapshot(query(collection(db, 'opinioes'), orderBy('createdAt', 'desc')), snap => {
     opinioes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderOpinioes(currentSort);
+    renderCatCounters();
     atualizarStats();
   });
 
@@ -134,14 +137,21 @@ function iniciarListeners() {
     renderInicio();
   });
 
-  // Membros do grêmio
+  // Avaliações da merenda
+  onSnapshot(collection(db, 'avaliacoes'), snap => {
+    avaliacoes = {};
+    snap.docs.forEach(d => { avaliacoes[d.id] = d.data(); });
+    renderMerenda();
+  });
+
+  // Membros
   onSnapshot(query(collection(db, 'membros'), orderBy('createdAt', 'asc')), snap => {
     membros = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderGremio();
   });
 
   hideLoading();
-  verificarCooldown(); // verifica se ainda há cooldown ativo ao carregar
+  verificarCooldown();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -158,7 +168,7 @@ window.showSection = function (id) {
 };
 
 // ════════════════════════════════════════════════════════════
-//  SEÇÃO: INÍCIO
+//  INÍCIO
 // ════════════════════════════════════════════════════════════
 function atualizarStats() {
   const totLikes = opinioes.reduce((s, o) => s + (o.likes || 0), 0);
@@ -170,7 +180,7 @@ function atualizarStats() {
 function renderInicio() {
   atualizarStats();
 
-  // Merenda de hoje
+  // Merenda hoje
   const todayKey  = dateKey(new Date());
   const itensHoje = merenda[todayKey];
   const box       = document.getElementById('merenda-hoje-box');
@@ -210,28 +220,23 @@ function renderInicio() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  SEÇÃO: OPINIÕES — cooldown de 3 minutos
+//  OPINIÕES — cooldown
 // ════════════════════════════════════════════════════════════
-
-/** Verifica se o usuário ainda está em cooldown ao abrir o site */
 function verificarCooldown() {
-  const ultimo = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
-  const agora  = Date.now();
-  const restante = COOLDOWN_MS - (agora - ultimo);
+  const ultimo   = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
+  const restante = COOLDOWN_MS - (Date.now() - ultimo);
   if (restante > 0) iniciarCooldownUI(restante);
 }
 
-/** Inicia a contagem regressiva na tela */
 function iniciarCooldownUI(msRestante) {
-  const btn    = document.getElementById('btn-enviar');
-  const aviso  = document.getElementById('cooldown-aviso');
-  const timer  = document.getElementById('cooldown-timer');
-  btn.disabled = true;
+  const btn   = document.getElementById('btn-enviar');
+  const aviso = document.getElementById('cooldown-aviso');
+  const timer = document.getElementById('cooldown-timer');
+  btn.disabled        = true;
   aviso.style.display = 'block';
   clearInterval(cooldownInterval);
-
   let segundos = Math.ceil(msRestante / 1000);
-  const atualizar = () => {
+  const tick = () => {
     const m = Math.floor(segundos / 60);
     const s = segundos % 60;
     timer.textContent = `${m}:${String(s).padStart(2, '0')}`;
@@ -242,24 +247,54 @@ function iniciarCooldownUI(msRestante) {
     }
     segundos--;
   };
-  atualizar();
-  cooldownInterval = setInterval(atualizar, 1000);
+  tick();
+  cooldownInterval = setInterval(tick, 1000);
 }
 
-/** Envia opinião com verificação de cooldown */
+// ════════════════════════════════════════════════════════════
+//  OPINIÕES — contador por categoria
+// ════════════════════════════════════════════════════════════
+function renderCatCounters() {
+  const contagem = {};
+  opinioes.forEach(o => { contagem[o.cat] = (contagem[o.cat] || 0) + 1; });
+  const strip = document.getElementById('cat-counter-strip');
+  if (!strip) return;
+
+  // Botão "Todas"
+  let html = `<div class="cat-counter-item ${!filtroCategoria ? 'active' : ''}"
+    onclick="filtrarCategoria(null)">
+    Todas <span class="cat-counter-num">${opinioes.length}</span>
+  </div>`;
+
+  Object.entries(contagem).sort((a,b) => b[1]-a[1]).forEach(([cat, n]) => {
+    html += `<div class="cat-counter-item ${filtroCategoria === cat ? 'active' : ''}"
+      onclick="filtrarCategoria('${cat}')">
+      ${cat} <span class="cat-counter-num">${n}</span>
+    </div>`;
+  });
+  strip.innerHTML = html;
+}
+
+window.filtrarCategoria = function(cat) {
+  filtroCategoria = cat;
+  renderCatCounters();
+  renderOpinioes(currentSort);
+};
+
+// ════════════════════════════════════════════════════════════
+//  OPINIÕES — envio e renderização
+// ════════════════════════════════════════════════════════════
 window.enviarOpiniao = async function () {
   if (!db) return;
 
-  // Verifica cooldown
-  const ultimo    = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
-  const restante  = COOLDOWN_MS - (Date.now() - ultimo);
-  if (restante > 0) {
-    iniciarCooldownUI(restante);
-    return;
-  }
+  const ultimo   = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0');
+  const restante = COOLDOWN_MS - (Date.now() - ultimo);
+  if (restante > 0) { iniciarCooldownUI(restante); return; }
 
   const texto = document.getElementById('opiniao-texto').value.trim();
   const cat   = document.getElementById('opiniao-categoria').value;
+  const nome  = document.getElementById('opiniao-nome').value.trim()  || 'Anônimo';
+  const turma = document.getElementById('opiniao-turma').value.trim() || '';
   if (!texto) { toast('Escreva sua opinião antes de enviar.', 'error'); return; }
 
   const btn = document.getElementById('btn-enviar');
@@ -267,11 +302,13 @@ window.enviarOpiniao = async function () {
 
   try {
     await addDoc(collection(db, 'opinioes'), {
-      texto, cat, likes: 0,
+      texto, cat, nome, turma, likes: 0,
       createdAt: serverTimestamp(),
       data: new Date().toLocaleDateString('pt-BR')
     });
     document.getElementById('opiniao-texto').value = '';
+    document.getElementById('opiniao-nome').value  = '';
+    document.getElementById('opiniao-turma').value = '';
     localStorage.setItem(COOLDOWN_KEY, String(Date.now()));
     iniciarCooldownUI(COOLDOWN_MS);
     toast('✅ Opinião enviada! Obrigado pela contribuição.');
@@ -290,30 +327,33 @@ window.sortOpinioes = function (mode, btn) {
 };
 
 function renderOpinioes(mode) {
-  const list = [...opinioes];
+  let list = [...opinioes];
+  if (filtroCategoria) list = list.filter(o => o.cat === filtroCategoria);
   if (mode === 'likes') list.sort((a, b) => (b.likes || 0) - (a.likes || 0));
 
   const el = document.getElementById('opinions-list');
   if (!list.length) {
-    el.innerHTML = '<div class="loading-msg">Ainda não há opiniões. Seja o primeiro a contribuir! 💡</div>';
+    el.innerHTML = `<div class="loading-msg">${filtroCategoria ? 'Nenhuma opinião nesta categoria.' : 'Ainda não há opiniões. Seja o primeiro! 💡'}</div>`;
     return;
   }
   el.innerHTML = list.map(o => {
     const liked = likedOpinioes.includes(o.id);
+    const autor = o.nome && o.nome !== 'Anônimo'
+      ? `${o.nome}${o.turma ? ' · ' + o.turma : ''}`
+      : o.turma || 'Anônimo';
     return `<div class="opinion-card">
       <div class="opinion-body">
         <div class="opinion-text">${o.texto}</div>
         <div class="opinion-meta">
           <span class="opinion-tag">${o.cat}</span>
+          <span>👤 ${autor}</span>
           <span>📅 ${o.data || ''}</span>
           ${isAdmin
-            ? `<button class="opinion-del-btn" onclick="deleteOpiniao('${o.id}')" title="Remover opinião">
-                 🗑 Remover
-               </button>`
+            ? `<button class="opinion-del-btn" onclick="deleteOpiniao('${o.id}')">🗑 Remover</button>`
             : ''}
         </div>
       </div>
-      <button class="like-btn ${liked ? 'liked' : ''}" onclick="toggleLike('${o.id}')" title="Votar">
+      <button class="like-btn ${liked ? 'liked' : ''}" onclick="toggleLike('${o.id}')">
         <span class="like-icon">👍</span>
         <span class="like-count">${o.likes || 0}</span>
       </button>
@@ -321,15 +361,12 @@ function renderOpinioes(mode) {
   }).join('');
 }
 
-/** Admin remove uma opinião */
 window.deleteOpiniao = async function (id) {
   if (!confirm('Remover esta opinião permanentemente?')) return;
   try {
     await deleteDoc(doc(db, 'opinioes', id));
     toast('Opinião removida.');
-  } catch (e) {
-    toast('Erro ao remover: ' + e.message, 'error');
-  }
+  } catch (e) { toast('Erro: ' + e.message, 'error'); }
 };
 
 window.toggleLike = async function (id) {
@@ -341,30 +378,45 @@ window.toggleLike = async function (id) {
   localStorage.setItem(LIKED_KEY, JSON.stringify(likedOpinioes));
   try {
     await updateDoc(doc(db, 'opinioes', id), { likes: increment(delta) });
-  } catch (e) {
-    toast('Erro ao registrar voto.', 'error');
-  }
+  } catch (e) { toast('Erro ao votar.', 'error'); }
 };
 
 // ════════════════════════════════════════════════════════════
-//  SEÇÃO: EVENTOS
+//  EVENTOS — próximos e histórico
 // ════════════════════════════════════════════════════════════
+window.switchEventoTab = function(tab) {
+  eventoTabAtual = tab;
+  document.getElementById('etab-proximos').classList.toggle('active', tab === 'proximos');
+  document.getElementById('etab-historico').classList.toggle('active', tab === 'historico');
+  renderEventos();
+};
+
 function renderEventos() {
   document.getElementById('btn-add-evento').style.display = isAdmin ? 'block' : 'none';
-  const grid = document.getElementById('events-grid');
-  if (!eventos.length) {
-    grid.innerHTML = '<div class="loading-msg">Nenhum evento cadastrado.</div>';
+  const now    = new Date();
+  const grid   = document.getElementById('events-grid');
+
+  const proximos  = eventos.filter(e => new Date(e.data + 'T00:00:00') >= now);
+  const historico = eventos.filter(e => new Date(e.data + 'T00:00:00') <  now)
+                           .sort((a,b) => b.data.localeCompare(a.data));
+
+  const lista = eventoTabAtual === 'proximos' ? proximos : historico;
+
+  if (!lista.length) {
+    grid.innerHTML = `<div class="loading-msg">${eventoTabAtual === 'proximos' ? 'Nenhum evento próximo.' : 'Nenhum evento no histórico.'}</div>`;
     return;
   }
-  grid.innerHTML = eventos.map(e => {
-    const d = new Date(e.data + 'T00:00:00');
-    return `<div class="event-card">
+  grid.innerHTML = lista.map(e => {
+    const d       = new Date(e.data + 'T00:00:00');
+    const passado = eventoTabAtual === 'historico';
+    return `<div class="event-card ${passado ? 'passado' : ''}">
       <div class="event-date-box">
         <div class="event-day">${d.getDate()}</div>
         <div class="event-month">${MESES[d.getMonth()]}</div>
       </div>
       <div class="event-body">
         <span class="event-badge badge-${e.cat}">${e.cat.charAt(0).toUpperCase() + e.cat.slice(1)}</span>
+        ${passado ? '<span class="event-badge" style="background:#F3F4F6;color:#6B7280;margin-left:4px">Realizado</span>' : ''}
         <div class="event-title">${e.titulo}</div>
         <div class="event-desc">${e.desc || ''}</div>
         <div class="event-meta">
@@ -381,9 +433,7 @@ function renderEventos() {
   }).join('');
 }
 
-window.openEventoModal = function () {
-  document.getElementById('modal-evento').classList.add('open');
-};
+window.openEventoModal = function () { document.getElementById('modal-evento').classList.add('open'); };
 
 window.saveEvento = async function () {
   if (!db) return;
@@ -393,40 +443,26 @@ window.saveEvento = async function () {
   const hora   = document.getElementById('evento-hora').value;
   const local  = document.getElementById('evento-local').value.trim();
   const cat    = document.getElementById('evento-cat').value;
-
-  if (!titulo || !data_) { toast('Preencha pelo menos o título e a data.', 'error'); return; }
-
+  if (!titulo || !data_) { toast('Preencha título e data.', 'error'); return; }
   const btn = document.getElementById('btn-save-evento');
   btn.disabled = true; btn.textContent = 'Salvando...';
-
   try {
-    await addDoc(collection(db, 'eventos'), {
-      titulo, desc, data: data_, hora, local, cat,
-      createdAt: serverTimestamp()
-    });
+    await addDoc(collection(db, 'eventos'), { titulo, desc, data: data_, hora, local, cat, createdAt: serverTimestamp() });
     closeModal('modal-evento');
-    ['titulo','desc','data','hora','local'].forEach(f => {
-      document.getElementById('evento-' + f).value = '';
-    });
+    ['titulo','desc','data','hora','local'].forEach(f => { document.getElementById('evento-'+f).value=''; });
     toast('✅ Evento cadastrado!');
-  } catch (e) {
-    toast('Erro ao salvar: ' + e.message, 'error');
-  }
+  } catch (e) { toast('Erro: ' + e.message, 'error'); }
   btn.disabled = false; btn.textContent = 'Salvar';
 };
 
 window.deleteEvento = async function (id) {
-  if (!confirm('Remover este evento permanentemente?')) return;
-  try {
-    await deleteDoc(doc(db, 'eventos', id));
-    toast('Evento removido.');
-  } catch (e) {
-    toast('Erro ao remover: ' + e.message, 'error');
-  }
+  if (!confirm('Remover este evento?')) return;
+  try { await deleteDoc(doc(db, 'eventos', id)); toast('Evento removido.'); }
+  catch (e) { toast('Erro: ' + e.message, 'error'); }
 };
 
 // ════════════════════════════════════════════════════════════
-//  SEÇÃO: MERENDA
+//  MERENDA + AVALIAÇÃO
 // ════════════════════════════════════════════════════════════
 function renderMerenda() {
   const dates = getWeekDates(currentWeekOffset);
@@ -435,9 +471,33 @@ function renderMerenda() {
     `${s.getDate()} ${MESES[s.getMonth()]} – ${e.getDate()} ${MESES[e.getMonth()]}`;
 
   document.getElementById('merenda-grid').innerHTML = dates.map((d, i) => {
-    const key   = dateKey(d);
-    const itens = merenda[key] || [];
-    const today = isToday(d);
+    const key      = dateKey(d);
+    const itens    = merenda[key] || [];
+    const today    = isToday(d);
+    const jaAvaliei = avaliadoDias.includes(key);
+    const notas    = avaliacoes[key] || {};
+    const totalAv  = Object.values(notas).reduce((s,n) => s+n, 0);
+
+    // Barra de avaliações
+    const notasHTML = totalAv > 0
+      ? `<div class="merenda-notas">
+          ${['😋','😊','😐','😕'].map(e => `
+            <div class="merenda-nota-item">
+              <span class="merenda-nota-emoji">${e}</span>
+              <span class="merenda-nota-count">${notas[e] || 0}</span>
+            </div>`).join('')}
+        </div>`
+      : '';
+
+    // Botão de avaliar (só se houver cardápio e não avaliou ainda)
+    const avaliarBtn = itens.length && !jaAvaliei
+      ? `<button class="merenda-avaliar-btn" onclick="openAvaliacaoModal('${key}', '${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">
+           ⭐ Avaliar merenda
+         </button>`
+      : jaAvaliei
+        ? `<div style="font-size:11px;color:var(--cinza);text-align:center;margin-top:6px">✓ Você já avaliou</div>`
+        : '';
+
     return `<div class="merenda-day ${today ? 'today' : ''}">
       <div class="merenda-day-header">
         <span>${DIAS_SHORT[i]} ${d.getDate()}/${String(d.getMonth()+1).padStart(2,'0')}</span>
@@ -447,20 +507,15 @@ function renderMerenda() {
         ${itens.length
           ? itens.map(it => `<div class="merenda-item"><div class="merenda-dot"></div><span>${it}</span></div>`).join('')
           : '<div class="merenda-empty">Cardápio não informado</div>'}
-        ${isAdmin
-          ? `<button class="merenda-edit-btn"
-               onclick="openMerendaEdit('${key}', '${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">
-               ✏ Editar</button>`
-          : ''}
+        ${notasHTML}
+        ${avaliarBtn}
+        ${isAdmin ? `<button class="merenda-edit-btn" onclick="openMerendaEdit('${key}','${DIAS[i]} ${d.getDate()}/${d.getMonth()+1}')">✏ Editar</button>` : ''}
       </div>
     </div>`;
   }).join('');
 }
 
-window.changeWeek = function (dir) {
-  currentWeekOffset += dir;
-  renderMerenda();
-};
+window.changeWeek = function (dir) { currentWeekOffset += dir; renderMerenda(); };
 
 window.openMerendaEdit = function (key, label) {
   editingMerendaKey = key;
@@ -473,24 +528,43 @@ window.saveMerenda = async function () {
   if (!db || !editingMerendaKey) return;
   const raw   = document.getElementById('merenda-input').value;
   const itens = raw.split('\n').map(s => s.trim()).filter(Boolean);
-
-  const btn = document.getElementById('btn-save-merenda');
+  const btn   = document.getElementById('btn-save-merenda');
   btn.disabled = true; btn.textContent = 'Salvando...';
-
   try {
-    await setDoc(doc(db, 'merenda', editingMerendaKey), {
-      itens, updatedAt: serverTimestamp()
-    });
+    await setDoc(doc(db, 'merenda', editingMerendaKey), { itens, updatedAt: serverTimestamp() });
     closeModal('modal-merenda');
     toast('✅ Cardápio salvo!');
-  } catch (e) {
-    toast('Erro ao salvar: ' + e.message, 'error');
-  }
+  } catch (e) { toast('Erro: ' + e.message, 'error'); }
   btn.disabled = false; btn.textContent = 'Salvar';
 };
 
+window.openAvaliacaoModal = function (key, label) {
+  avaliacaoKey = key;
+  document.getElementById('modal-avaliacao-title').textContent = `⭐ Avaliar – ${label}`;
+  document.getElementById('modal-avaliacao').classList.add('open');
+};
+
+window.salvarAvaliacao = async function (emoji) {
+  if (!db || !avaliacaoKey) return;
+  try {
+    const ref   = doc(db, 'avaliacoes', avaliacaoKey);
+    const dados = {};
+    dados[emoji] = increment(1);
+    await updateDoc(ref, dados).catch(async () => {
+      // Documento não existe ainda: cria com valor 1
+      const novo = { '😋': 0, '😊': 0, '😐': 0, '😕': 0 };
+      novo[emoji] = 1;
+      await setDoc(ref, novo);
+    });
+    avaliadoDias.push(avaliacaoKey);
+    localStorage.setItem(AVALIADO_KEY, JSON.stringify(avaliadoDias));
+    closeModal('modal-avaliacao');
+    toast('✅ Obrigado pela avaliação!');
+  } catch (e) { toast('Erro ao avaliar: ' + e.message, 'error'); }
+};
+
 // ════════════════════════════════════════════════════════════
-//  SEÇÃO: GRÊMIO
+//  GRÊMIO
 // ════════════════════════════════════════════════════════════
 function renderGremio() {
   document.getElementById('btn-add-membro').style.display = isAdmin ? 'block' : 'none';
@@ -503,30 +577,27 @@ function renderGremio() {
     <div class="membro-card">
       <div class="membro-foto-wrap">
         ${m.foto
-          ? `<img src="${m.foto}" alt="Foto de ${m.nome}" onerror="this.parentElement.innerHTML='<div class=membro-foto-placeholder>👤</div>'">`
+          ? `<img src="${m.foto}" alt="${m.nome}" onerror="this.parentElement.innerHTML='<div class=membro-foto-placeholder>👤</div>'">`
           : '<div class="membro-foto-placeholder">👤</div>'}
       </div>
       <div class="membro-body">
         ${m.cargo ? `<div class="membro-cargo">${m.cargo}</div>` : ''}
         <div class="membro-nome">${m.nome}</div>
         <div class="membro-info">
-          ${m.idade  ? `<span>🎂 ${m.idade} anos</span>` : ''}
-          ${m.turma  ? `<span>📚 ${m.turma}</span>` : ''}
-          ${m.email  ? `<span>✉️ <a href="mailto:${m.email}">${m.email}</a></span>` : ''}
+          ${m.idade     ? `<span>🎂 ${m.idade} anos</span>`  : ''}
+          ${m.turma     ? `<span>📚 ${m.turma}</span>`       : ''}
+          ${m.email     ? `<span>✉️ <a href="mailto:${m.email}">${m.email}</a></span>` : ''}
           ${m.instagram ? `<span>📸 <a href="https://instagram.com/${m.instagram.replace('@','')}" target="_blank">${m.instagram}</a></span>` : ''}
         </div>
       </div>
-      ${isAdmin
-        ? `<button class="membro-del-btn" onclick="deleteMembro('${m.id}')">✕ Remover</button>`
-        : ''}
+      ${isAdmin ? `<button class="membro-del-btn" onclick="deleteMembro('${m.id}')">✕ Remover</button>` : ''}
     </div>`
   ).join('');
 }
 
 window.openMembroModal = function () {
-  // Limpa os campos
   ['foto','nome','idade','turma','cargo','email','instagram'].forEach(f => {
-    document.getElementById('membro-' + f).value = '';
+    document.getElementById('membro-'+f).value = '';
   });
   document.getElementById('modal-membro').classList.add('open');
 };
@@ -540,33 +611,21 @@ window.saveMembro = async function () {
   const cargo     = document.getElementById('membro-cargo').value.trim();
   const email     = document.getElementById('membro-email').value.trim();
   const instagram = document.getElementById('membro-instagram').value.trim();
-
   if (!nome) { toast('O nome é obrigatório.', 'error'); return; }
-
   const btn = document.getElementById('btn-save-membro');
   btn.disabled = true; btn.textContent = 'Salvando...';
-
   try {
-    await addDoc(collection(db, 'membros'), {
-      nome, foto, idade, turma, cargo, email, instagram,
-      createdAt: serverTimestamp()
-    });
+    await addDoc(collection(db, 'membros'), { nome, foto, idade, turma, cargo, email, instagram, createdAt: serverTimestamp() });
     closeModal('modal-membro');
     toast('✅ Membro adicionado!');
-  } catch (e) {
-    toast('Erro ao salvar: ' + e.message, 'error');
-  }
+  } catch (e) { toast('Erro: ' + e.message, 'error'); }
   btn.disabled = false; btn.textContent = 'Salvar';
 };
 
 window.deleteMembro = async function (id) {
-  if (!confirm('Remover este membro do grêmio?')) return;
-  try {
-    await deleteDoc(doc(db, 'membros', id));
-    toast('Membro removido.');
-  } catch (e) {
-    toast('Erro ao remover: ' + e.message, 'error');
-  }
+  if (!confirm('Remover este membro?')) return;
+  try { await deleteDoc(doc(db, 'membros', id)); toast('Membro removido.'); }
+  catch (e) { toast('Erro: ' + e.message, 'error'); }
 };
 
 // ════════════════════════════════════════════════════════════
@@ -576,12 +635,8 @@ window.openAdminModal = function () {
   if (isAdmin) {
     isAdmin = false;
     const btn = document.getElementById('nav-admin-btn');
-    btn.classList.remove('ativo');
-    btn.textContent = '⚙ Admin';
-    renderEventos();
-    renderMerenda();
-    renderOpinioes(currentSort);
-    renderGremio();
+    btn.classList.remove('ativo'); btn.textContent = '⚙ Admin';
+    renderEventos(); renderMerenda(); renderOpinioes(currentSort); renderGremio();
     toast('Modo admin desativado.');
     return;
   }
@@ -598,12 +653,8 @@ window.checkPin = function () {
       isAdmin = true;
       closeModal('modal-admin');
       const btn = document.getElementById('nav-admin-btn');
-      btn.classList.add('ativo');
-      btn.textContent = '✓ Admin ON';
-      renderEventos();
-      renderMerenda();
-      renderOpinioes(currentSort);
-      renderGremio();
+      btn.classList.add('ativo'); btn.textContent = '✓ Admin ON';
+      renderEventos(); renderMerenda(); renderOpinioes(currentSort); renderGremio();
       toast('✅ Modo admin ativado!');
     } else {
       document.getElementById('pin-error').style.display = 'block';
@@ -615,14 +666,10 @@ window.checkPin = function () {
 // ════════════════════════════════════════════════════════════
 //  MODAIS
 // ════════════════════════════════════════════════════════════
-window.closeModal = function (id) {
-  document.getElementById(id).classList.remove('open');
-};
+window.closeModal = function (id) { document.getElementById(id).classList.remove('open'); };
 
 document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => {
-    if (e.target === m) m.classList.remove('open');
-  });
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
 });
 
 // ════════════════════════════════════════════════════════════
