@@ -6,19 +6,20 @@
 <title>IFPA - Campus Cametá</title>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
- 
+
 <!-- TELA DE CARREGAMENTO -->
 <div id="loading-screen">
   <div class="loading-logo">IFPA</div>
   <div class="loading-txt">Conectando ao servidor...</div>
   <div class="loading-bar"><div class="loading-bar-inner"></div></div>
 </div>
- 
+
 <!-- NOTIFICAÇÃO -->
 <div id="toast"></div>
- 
+
 <!-- NAVEGAÇÃO -->
 <nav>
   <div class="nav-logo">
@@ -35,9 +36,9 @@
     <span class="nav-link" onclick="showSection('merenda')">Merenda</span>
     <span class="nav-link" onclick="showSection('gremio')">Grêmio</span>
   </div>
-  <button class="nav-admin-btn" id="nav-admin-btn" onclick="openAdminModal()">⚙ Admin</button>
+  <button class="nav-admin-btn" id="nav-admin-btn" onclick="openAdminModal()">Gerenciador</button>
 </nav>
- 
+
 <!-- HERO -->
 <div class="hero">
   <div class="hero-tag">Grêmio Estudantil · IFPA Cametá</div>
@@ -48,19 +49,19 @@
     <button class="btn-hero-outline" onclick="showSection('merenda')">Ver merenda de hoje</button>
   </div>
 </div>
- 
+
 <!-- ABAS -->
 <div class="tabs-wrapper">
   <div class="tab active" onclick="showSection('inicio')"  id="tab-inicio">🏠 Início</div>
   <div class="tab"        onclick="showSection('opiniao')" id="tab-opiniao">💬 Opiniões</div>
   <div class="tab"        onclick="showSection('eventos')" id="tab-eventos">📅 Eventos</div>
   <div class="tab"        onclick="showSection('merenda')" id="tab-merenda">🍽 Merenda</div>
-  <div class="tab"        onclick="showSection('gremio')"  id="tab-gremio">🎓 Grêmio</div>
+  <div class="tab"        onclick="showSection('gremio')"  id="tab-gremio"> 👁️ Grêmio</div>
 </div>
- 
+
 <!-- CONTEÚDO PRINCIPAL -->
 <div class="main">
- 
+
   <!-- ── INÍCIO ── -->
   <div class="section active" id="section-inicio">
     <div class="stats-strip">
@@ -86,16 +87,30 @@
       <div id="proximo-evento-box" class="card-box-content">Carregando...</div>
     </div>
   </div>
- 
+
   <!-- ── OPINIÕES ── -->
   <div class="section" id="section-opiniao">
     <div class="section-header">
       <h2 class="section-title">💬 Caixa de Opiniões</h2>
     </div>
- 
-    <!-- Formulário Firebase (usado pelo script.js) -->
+
+    <!-- Formulário de envio -->
     <div class="opinion-form">
       <h3>Qual sua sugestão para melhorar o campus?</h3>
+
+      <!-- Nome e Turma -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label class="form-label">Seu nome <span style="color:var(--cinza);font-weight:400">(opcional)</span></label>
+          <input class="form-input" id="opiniao-nome" type="text" placeholder="Ex: João Silva">
+        </div>
+        <div>
+          <label class="form-label">Sua turma <span style="color:var(--cinza);font-weight:400">(opcional)</span></label>
+          <input class="form-input" id="opiniao-turma" type="text" placeholder="Ex: 2º Ano B">
+        </div>
+      </div>
+
+      <!-- Categoria -->
       <div style="margin-bottom:10px">
         <select id="opiniao-categoria" class="form-select" style="width:auto;display:inline-block;min-width:200px">
           <option value="Infraestrutura">🏗 Infraestrutura</option>
@@ -106,38 +121,52 @@
           <option value="Outro">💡 Outro</option>
         </select>
       </div>
+
+      <!-- Texto + botão -->
       <div class="form-row">
         <textarea class="opinion-textarea" id="opiniao-texto" name="opiniao" placeholder="Escreva sua opinião ou sugestão aqui..."></textarea>
         <button class="btn-submit" id="btn-enviar" onclick="enviarOpiniao()">Enviar</button>
       </div>
+
       <!-- Cooldown -->
       <div id="cooldown-aviso" style="display:none;margin-top:10px;font-size:13px;color:var(--cinza)">
         ⏳ Aguarde <strong id="cooldown-timer">3:00</strong> para enviar uma nova opinião.
       </div>
     </div>
- 
+
+    <!-- Contador por categoria -->
+    <div class="cat-counter-strip" id="cat-counter-strip"></div>
+
+    <!-- Ordenação -->
     <div class="sort-bar">
       <span style="font-size:12px;color:var(--cinza);align-self:center">Ordenar:</span>
       <button class="sort-btn active" onclick="sortOpinioes('likes', this)">🔥 Mais votadas</button>
       <button class="sort-btn"        onclick="sortOpinioes('recentes', this)">🕐 Mais recentes</button>
     </div>
- 
+
     <div class="opinions-list" id="opinions-list">
       <div class="loading-msg">Carregando opiniões...</div>
     </div>
   </div>
- 
+
   <!-- ── EVENTOS ── -->
   <div class="section" id="section-eventos">
     <div class="section-header">
       <h2 class="section-title">📅 Eventos do Campus</h2>
       <button class="btn-submit" id="btn-add-evento" style="display:none" onclick="openEventoModal()">+ Adicionar Evento</button>
     </div>
+
+    <!-- Sub-abas: Próximos / Histórico -->
+    <div class="eventos-tabs">
+      <button class="evento-tab active" id="etab-proximos" onclick="switchEventoTab('proximos')">📅 Próximos</button>
+      <button class="evento-tab"        id="etab-historico" onclick="switchEventoTab('historico')">🗂 Histórico</button>
+    </div>
+
     <div class="events-grid" id="events-grid">
       <div class="loading-msg">Carregando eventos...</div>
     </div>
   </div>
- 
+
   <!-- ── MERENDA ── -->
   <div class="section" id="section-merenda">
     <div class="section-header">
@@ -153,24 +182,22 @@
     </div>
     <div class="merenda-grid" id="merenda-grid"></div>
   </div>
- 
+
   <!-- ── GRÊMIO ── -->
   <div class="section" id="section-gremio">
     <div class="section-header">
-      <h2 class="section-title">🎓 Membros do Grêmio</h2>
+      <h2 class="section-title">👁️ Membros do Grêmio</h2>
       <button class="btn-submit" id="btn-add-membro" style="display:none" onclick="openMembroModal()">+ Adicionar Membro</button>
     </div>
     <div class="gremio-grid" id="gremio-grid">
       <div class="loading-msg">Carregando membros...</div>
     </div>
   </div>
- 
-</div><!-- fim .main -->
- 
+
 <!-- ═══════════════════════════════════════
      MODAIS
 ═══════════════════════════════════════ -->
- 
+
 <!-- MODAL: PIN ADMIN -->
 <div class="modal-overlay" id="modal-admin">
   <div class="modal" style="max-width:360px">
@@ -183,7 +210,7 @@
     </div>
   </div>
 </div>
- 
+
 <!-- MODAL: EDITAR MERENDA -->
 <div class="modal-overlay" id="modal-merenda">
   <div class="modal">
@@ -199,7 +226,7 @@
     </div>
   </div>
 </div>
- 
+
 <!-- MODAL: NOVO EVENTO -->
 <div class="modal-overlay" id="modal-evento">
   <div class="modal">
@@ -207,7 +234,7 @@
     <h2>📅 Novo Evento</h2>
     <div class="form-group">
       <label class="form-label">Título do evento</label>
-      <input class="form-input" id="evento-titulo" type="text" placeholder="Ex: Semana de Ciência e Tecnologia">
+      <input class="form-input" id="evento-titulo" type="text" placeholder="Ex: Semana Acadêmica">
     </div>
     <div class="form-group">
       <label class="form-label">Descrição</label>
@@ -244,7 +271,7 @@
     </div>
   </div>
 </div>
- 
+
 <!-- MODAL: NOVO MEMBRO DO GRÊMIO -->
 <div class="modal-overlay" id="modal-membro">
   <div class="modal">
@@ -259,7 +286,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">Nome completo</label>
-      <input class="form-input" id="membro-nome" type="text" placeholder="Ex: Ana Paula Silva">
+      <input class="form-input" id="membro-nome" type="text" placeholder="Ex: Felipe Alfaia">
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
@@ -268,7 +295,7 @@
       </div>
       <div class="form-group">
         <label class="form-label">Turma</label>
-        <input class="form-input" id="membro-turma" type="text" placeholder="Ex: 2º Ano A">
+        <input class="form-input" id="membro-turma" type="text" placeholder="Ex: 3º Ano Info">
       </div>
     </div>
     <div class="form-group">
@@ -277,11 +304,11 @@
     </div>
     <div class="form-group">
       <label class="form-label">E-mail</label>
-      <input class="form-input" id="membro-email" type="email" placeholder="Ex: ana@aluno.ifpa.edu.br">
+      <input class="form-input" id="membro-email" type="email" placeholder="Ex: aluno1234@gmail.com">
     </div>
     <div class="form-group">
       <label class="form-label">Instagram</label>
-      <input class="form-input" id="membro-instagram" type="text" placeholder="Ex: @ana.silva">
+      <input class="form-input" id="membro-instagram" type="text" placeholder="Ex: @aluno1234">
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal('modal-membro')">Cancelar</button>
@@ -289,45 +316,96 @@
     </div>
   </div>
 </div>
- 
+
+<!-- MODAL: AVALIAR MERENDA -->
+<div class="modal-overlay" id="modal-avaliacao">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <button class="modal-close" onclick="closeModal('modal-avaliacao')">✕</button>
+    <h2 id="modal-avaliacao-title">Avaliar Merenda</h2>
+    <p style="font-size:13px;color:var(--texto-muted);margin-bottom:1.5rem">Como foi a merenda deste dia?</p>
+    <div class="avaliacao-emojis">
+      <button class="avaliacao-btn" onclick="salvarAvaliacao('😋')">😋<span>Deliciosa</span></button>
+      <button class="avaliacao-btn" onclick="salvarAvaliacao('😊')">😊<span>Boa</span></button>
+      <button class="avaliacao-btn" onclick="salvarAvaliacao('😐')">😐<span>Regular</span></button>
+      <button class="avaliacao-btn" onclick="salvarAvaliacao('😕')">😕<span>Ruim</span></button>
+    </div>
+  </div>
+</div>
+
 <footer>
   <strong>IFPA Campus Cametá</strong> · Portal do Estudante · Desenvolvido pelo Grêmio Estudantil
 </footer>
- 
-<!-- Formspree: envia uma cópia da opinião por e-mail ao grêmio -->
+
+<!-- Formspree: cópia das opiniões e contato -->
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  // Intercepta o envio do Firebase para também mandar ao Formspree
+  // Envia cópia ao Formspree quando aluno envia opinião
   const btnEnviar = document.getElementById("btn-enviar");
-  if (!btnEnviar) return;
- 
-  // Guarda a referência original do onclick definido no HTML
-  const onclickOriginal = btnEnviar.onclick;
- 
-  btnEnviar.addEventListener("click", async () => {
-    const texto = document.getElementById("opiniao-texto").value.trim();
-    const cat   = document.getElementById("opiniao-categoria").value;
-    if (!texto) return; // deixa o Firebase mostrar o erro
- 
-    // Envia ao Formspree em paralelo (silenciosamente)
-    try {
-      const formData = new FormData();
-      formData.append("opiniao",   texto);
-      formData.append("categoria", cat);
-      await fetch("https://formspree.io/f/xgobrwpa", {
-        method:  "POST",
-        body:    formData,
-        headers: { "Accept": "application/json" }
-      });
-    } catch (e) {
-      // Falha no Formspree não deve bloquear o Firebase
-      console.warn("Formspree:", e);
-    }
-  });
+  if (btnEnviar) {
+    btnEnviar.addEventListener("click", async () => {
+      const texto = document.getElementById("opiniao-texto").value.trim();
+      const cat   = document.getElementById("opiniao-categoria").value;
+      const nome  = document.getElementById("opiniao-nome").value.trim();
+      const turma = document.getElementById("opiniao-turma").value.trim();
+      if (!texto) return;
+      try {
+        const fd = new FormData();
+        fd.append("opiniao",   texto);
+        fd.append("categoria", cat);
+        fd.append("nome",      nome  || "Anônimo");
+        fd.append("turma",     turma || "Não informada");
+        await fetch("https://formspree.io/f/xgobrwpa", {
+          method: "POST", body: fd, headers: { "Accept": "application/json" }
+        });
+      } catch (e) { console.warn("Formspree opinião:", e); }
+    });
+  }
 });
+
+// Envio do formulário de contato via Formspree
+window.enviarContato = async function() {
+  const nome    = document.getElementById("contato-nome").value.trim();
+  const turma   = document.getElementById("contato-turma").value.trim();
+  const assunto = document.getElementById("contato-assunto").value;
+  const msg     = document.getElementById("contato-msg").value.trim();
+  const sucesso = document.getElementById("contato-sucesso");
+  const erro    = document.getElementById("contato-erro");
+  const btn     = document.getElementById("btn-contato");
+
+  if (!msg) { alert("Escreva uma mensagem antes de enviar."); return; }
+
+  btn.disabled    = true;
+  btn.textContent = "Enviando...";
+  sucesso.style.display = "none";
+  erro.style.display    = "none";
+
+  try {
+    const fd = new FormData();
+    fd.append("nome",    nome    || "Não informado");
+    fd.append("turma",   turma   || "Não informada");
+    fd.append("assunto", assunto);
+    fd.append("message", msg);
+    const res = await fetch("https://formspree.io/f/xgobrwpa", {
+      method: "POST", body: fd, headers: { "Accept": "application/json" }
+    });
+    if (res.ok) {
+      sucesso.style.display = "block";
+      ["contato-nome","contato-turma","contato-msg"].forEach(id => {
+        document.getElementById(id).value = "";
+      });
+    } else {
+      erro.style.display = "block";
+    }
+  } catch(e) {
+    erro.style.display = "block";
+  }
+
+  btn.disabled    = false;
+  btn.textContent = "Enviar mensagem ✉️";
+};
 </script>
- 
+
 <script type="module" src="script.js"></script>
- 
+
 </body>
 </html>

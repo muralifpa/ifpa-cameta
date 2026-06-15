@@ -408,7 +408,8 @@ footer strong { color: rgba(255,255,255,0.9); }
 
 .membro-foto-wrap {
   width: 100%;
-  height: 180px;
+  height: 260px;
+
   background: var(--verde-bg);
   overflow: hidden;
   display: flex;
@@ -508,3 +509,141 @@ footer strong { color: rgba(255,255,255,0.9); }
   border-radius: 8px;
   padding: 10px 14px;
 }
+/* ════════════════════════════════════════
+   CONTADOR DE CATEGORIAS
+════════════════════════════════════════ */
+.cat-counter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+.cat-counter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--cinza-claro);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--texto-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cat-counter-item:hover,
+.cat-counter-item.active {
+  background: var(--verde-bg);
+  border-color: var(--verde-claro);
+  color: var(--verde);
+}
+.cat-counter-num {
+  background: var(--verde);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.cat-counter-item.active .cat-counter-num {
+  background: var(--verde-escuro);
+}
+
+/* ════════════════════════════════════════
+   EVENTOS — sub-abas próximos/histórico
+════════════════════════════════════════ */
+.eventos-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+.evento-tab {
+  background: var(--cinza-claro);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--texto-muted);
+  transition: all 0.15s;
+}
+.evento-tab:hover  { background: var(--verde-bg); color: var(--verde); border-color: var(--verde-claro); }
+.evento-tab.active { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+.event-card.passado { opacity: 0.7; }
+.event-card.passado .event-date-box { background: var(--cinza); }
+
+/* ════════════════════════════════════════
+   MERENDA — avaliação
+════════════════════════════════════════ */
+.merenda-avaliar-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--cinza);
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.15s;
+}
+.merenda-avaliar-btn:hover { border-color: var(--amarelo); color: var(--verde-escuro); }
+
+.merenda-notas {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.merenda-nota-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--cinza);
+}
+.merenda-nota-emoji { font-size: 16px; }
+.merenda-nota-count { font-weight: 600; color: var(--verde); font-size: 12px; }
+
+.avaliacao-emojis {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.avaliacao-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--cinza-claro);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  font-size: 32px;
+  transition: all 0.15s;
+  font-family: 'DM Sans', sans-serif;
+}
+.avaliacao-btn span {
+  font-size: 11px;
+  color: var(--texto-muted);
+  font-weight: 500;
+}
+.avaliacao-btn:hover {
+  background: var(--verde-bg);
+  border-color: var(--verde-claro);
+  transform: scale(1.08);
+}
+
